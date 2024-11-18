@@ -1,0 +1,154 @@
+--36
+.data
+    // Arreglo de ejemplo
+    arreglo:     .quad   45, 23, 89, 12, 78, 90, 34, 56, 67, 43    // Arreglo de 10 números
+    tam_arreglo: .quad   10                                         // Tamaño del arreglo
+    msg:         .string "El segundo elemento más grande es: "
+    buffer:      .skip   20                                         // Buffer para convertir número a string
+    newline:     .string "\n"
+
+.text
+.global main
+.type main, %function
+
+// Función para convertir entero a string
+int_to_string:
+    // x0 = número a convertir
+    // x1 = dirección del buffer
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x1           // Guardar dirección del buffer
+    mov x20, #0          // Contador de dígitos
+    mov x2, #10          // Divisor
+    
+    // Manejar caso especial si el número es 0
+    cmp x0, #0
+    bne convertir_digitos
+    mov w3, #'0'
+    strb w3, [x19]
+    mov x20, #1
+    b fin_conversion
+    
+convertir_digitos:
+    // Dividir por 10 y guardar el residuo
+    udiv x3, x0, x2      // x3 = x0 / 10
+    msub x4, x3, x2, x0  // x4 = x0 - (x3 * 10) = residuo
+    add w4, w4, #'0'     // Convertir a ASCII
+    strb w4, [x19, x20]  // Guardar dígito
+    add x20, x20, #1     // Incrementar contador
+    mov x0, x3           // Preparar para siguiente división
+    cbnz x0, convertir_digitos
+    
+    // Invertir la cadena
+    mov x3, #0           // Índice inicio
+    sub x4, x20, #1      // Índice final
+    
+invertir_string:
+    cmp x3, x4
+    bge fin_conversion
+    ldrb w5, [x19, x3]
+    ldrb w6, [x19, x4]
+    strb w6, [x19, x3]
+    strb w5, [x19, x4]
+    add x3, x3, #1
+    sub x4, x4, #1
+    b invertir_string
+    
+fin_conversion:
+    mov w3, #'\n'        // Agregar salto de línea
+    strb w3, [x19, x20]
+    add x20, x20, #1     // Incrementar longitud
+    mov x0, x20          // Retornar longitud
+    
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para encontrar segundo mayor
+segundo_mayor:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0          // Dirección base
+    mov x20, x1          // Tamaño
+    
+    cmp x20, #2
+    blt no_segundo
+    
+    ldr x2, [x19]        // Primer máximo
+    ldr x3, [x19, #8]    // Segundo máximo inicial
+    
+    cmp x3, x2
+    ble continuar
+    mov x4, x2
+    mov x2, x3
+    mov x3, x4
+    
+continuar:
+    mov x4, #2
+    
+bucle:
+    cmp x4, x20
+    beq fin_bucle
+    
+    lsl x5, x4, #3
+    add x5, x19, x5
+    ldr x6, [x5]
+    
+    cmp x6, x2
+    ble comparar_segundo
+    mov x3, x2
+    mov x2, x6
+    b siguiente
+    
+comparar_segundo:
+    cmp x6, x3
+    csel x3, x6, x3, gt
+    
+siguiente:
+    add x4, x4, #1
+    b bucle
+    
+fin_bucle:
+    mov x0, x3
+    b fin_funcion
+    
+no_segundo:
+    mov x0, #-1
+    
+fin_funcion:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+main:
+    stp x29, x30, [sp, #-16]!
+    
+    // Imprimir mensaje inicial
+    adr x0, msg
+    bl printf
+    
+    // Encontrar segundo mayor
+    adr x0, arreglo
+    ldr x1, tam_arreglo
+    bl segundo_mayor
+    
+    // Convertir resultado a string
+    mov x19, x0          // Guardar resultado
+    adr x1, buffer
+    bl int_to_string
+    
+    // Imprimir resultado
+    mov x2, x0          // Longitud del string
+    adr x1, buffer      // Buffer con el número
+    mov x0, #1          // File descriptor (stdout)
+    mov x8, #64         // Syscall write
+    svc #0
+    
+    // Salir del programa
+    ldp x29, x30, [sp], #16
+    mov x0, #0          // Código de retorno
+    ret
+
+.global printf
