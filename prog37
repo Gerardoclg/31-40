@@ -1,0 +1,186 @@
+--37
+.data
+    // Definición de la pila
+    pila:        .skip 800               // Espacio para 100 elementos (8 bytes cada uno)
+    tam_pila:    .quad 100               // Tamaño máximo de la pila
+    tope:        .quad 0                 // Índice del tope de la pila
+    
+    // Mensajes de formato para printf
+    msg_push:    .string "Elemento insertado: %d\n"
+    msg_pop:     .string "Elemento extraído: %d\n"
+    msg_peek:    .string "Elemento en el tope: %d\n"
+    msg_llena:   .string "Error: Pila llena\n"
+    msg_vacia:   .string "Error: Pila vacía\n"
+
+.text
+.global main
+
+// Función para verificar si la pila está vacía
+is_empty:
+    adr x0, tope
+    ldr x0, [x0]
+    cmp x0, #0
+    cset x0, eq
+    ret
+
+// Función para verificar si la pila está llena
+is_full:
+    adr x0, tope
+    ldr x0, [x0]
+    adr x1, tam_pila
+    ldr x1, [x1]
+    cmp x0, x1
+    cset x0, eq
+    ret
+
+// Función push: inserta un elemento en la pila
+push:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0                 // Guardar valor a insertar
+    
+    bl is_full
+    cbnz x0, push_error
+    
+    // Obtener posición actual
+    adr x0, tope
+    ldr x1, [x0]                // x1 = tope actual
+    
+    // Calcular dirección donde insertar
+    adr x2, pila
+    lsl x3, x1, #3              // x3 = tope * 8
+    add x2, x2, x3              // x2 = dirección donde insertar
+    
+    // Insertar valor
+    str x19, [x2]
+    
+    // Incrementar tope
+    add x1, x1, #1
+    str x1, [x0]
+    
+    // Imprimir mensaje de éxito
+    adr x0, msg_push
+    mov x1, x19
+    bl printf
+    
+    mov x0, #0                  // Éxito
+    b push_fin
+    
+push_error:
+    adr x0, msg_llena
+    bl printf
+    mov x0, #-1                 // Error
+    
+push_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función pop: extrae el elemento del tope
+pop:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    bl is_empty
+    cbnz x0, pop_error
+    
+    // Obtener posición actual
+    adr x0, tope
+    ldr x1, [x0]                // x1 = tope actual
+    sub x1, x1, #1              // Decrementar tope
+    
+    // Calcular dirección del elemento
+    adr x2, pila
+    lsl x3, x1, #3              // x3 = (tope-1) * 8
+    add x2, x2, x3
+    
+    // Extraer valor
+    ldr x19, [x2]               // x19 = valor a retornar
+    
+    // Actualizar tope
+    str x1, [x0]
+    
+    // Imprimir mensaje
+    adr x0, msg_pop
+    mov x1, x19
+    bl printf
+    
+    mov x0, x19                 // Retornar valor
+    b pop_fin
+    
+pop_error:
+    adr x0, msg_vacia
+    bl printf
+    mov x0, #-1
+    
+pop_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función peek: mira el elemento del tope sin extraerlo
+peek:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    bl is_empty
+    cbnz x0, peek_error
+    
+    // Obtener posición actual
+    adr x0, tope
+    ldr x1, [x0]                // x1 = tope actual
+    sub x1, x1, #1              // Apuntar al último elemento
+    
+    // Calcular dirección del elemento
+    adr x2, pila
+    lsl x3, x1, #3              // x3 = (tope-1) * 8
+    add x2, x2, x3
+    
+    // Obtener valor
+    ldr x19, [x2]               // Guardar valor
+    
+    // Imprimir mensaje
+    adr x0, msg_peek
+    mov x1, x19
+    bl printf
+    
+    mov x0, x19                 // Retornar valor
+    b peek_fin
+    
+peek_error:
+    adr x0, msg_vacia
+    bl printf
+    mov x0, #-1
+    
+peek_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+main:
+    stp x29, x30, [sp, #-16]!
+    
+    // Probar push
+    mov x0, #10
+    bl push
+    
+    mov x0, #20
+    bl push
+    
+    mov x0, #30
+    bl push
+    
+    // Probar peek
+    bl peek
+    
+    // Probar pop
+    bl pop
+    
+    // Probar pop de nuevo
+    bl pop
+    
+    ldp x29, x30, [sp], #16
+    ret
+
+.global printf
