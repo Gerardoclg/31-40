@@ -1,0 +1,165 @@
+--40
+.data
+    .align 4
+    // Número binario de ejemplo (como string)
+    num_bin:    .string "1010101"    // Puedes cambiar este número binario
+    
+    // Mensajes de formato
+    msg_bin:    .string "Número binario: %s\n"
+    msg_dec:    .string "Número decimal: %ld\n"
+    msg_error:  .string "Error: Entrada no válida. Use solo 0s y 1s.\n"
+
+.text
+.global main
+
+// Función para validar string binario
+// Retorna: x0 = 1 si es válido, 0 si no
+validar_binario:
+    stp x29, x30, [sp, #-16]!
+    mov x2, x0                  // Guardar dirección del string
+    
+validar_loop:
+    ldrb w1, [x2]              // Cargar byte actual
+    cbz w1, validar_fin        // Si es 0 (fin del string), terminar
+    
+    cmp w1, #'0'               // Comparar con '0'
+    blt invalid_char
+    cmp w1, #'1'               // Comparar con '1'
+    bgt invalid_char
+    
+    add x2, x2, #1             // Siguiente carácter
+    b validar_loop
+    
+invalid_char:
+    mov x0, #0                 // Retornar falso (inválido)
+    b validar_ret
+    
+validar_fin:
+    mov x0, #1                 // Retornar verdadero (válido)
+    
+validar_ret:
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para convertir usando potencias de 2
+binario_a_decimal_potencias:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    
+    mov x19, x0                // Guardar dirección del string
+    mov x20, #0                // Resultado decimal
+    mov x21, #0                // Longitud del string
+    
+    // Calcular longitud del string
+length_loop:
+    ldrb w1, [x19, x21]
+    cbz w1, start_conversion
+    add x21, x21, #1
+    b length_loop
+    
+start_conversion:
+    sub x21, x21, #1          // Índice del último carácter
+    mov x22, #1               // Potencia actual de 2
+    
+conversion_loop:
+    cmp x21, #0
+    blt conversion_done
+    
+    // Obtener dígito actual
+    ldrb w1, [x19, x21]
+    sub w1, w1, #'0'          // Convertir de ASCII a número
+    
+    // Multiplicar por la potencia correspondiente y sumar
+    cmp w1, #1
+    bne skip_add
+    add x20, x20, x22         // Sumar potencia actual si el dígito es 1
+    
+skip_add:
+    lsl x22, x22, #1          // Multiplicar potencia por 2
+    sub x21, x21, #1          // Mover al siguiente dígito
+    b conversion_loop
+    
+conversion_done:
+    mov x0, x20               // Retornar resultado
+    
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para convertir usando desplazamientos
+binario_a_decimal_shift:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0               // Guardar dirección del string
+    mov x20, #0               // Resultado decimal
+    
+shift_loop:
+    ldrb w1, [x19]           // Cargar siguiente dígito
+    cbz w1, shift_done       // Si es fin de string, terminar
+    
+    // Desplazar resultado actual
+    lsl x20, x20, #1
+    
+    // Añadir nuevo dígito
+    sub w1, w1, #'0'         // Convertir ASCII a número
+    add x20, x20, x1
+    
+    add x19, x19, #1         // Siguiente carácter
+    b shift_loop
+    
+shift_done:
+    mov x0, x20              // Retornar resultado
+    
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+main:
+    stp x29, x30, [sp, #-16]!
+    
+    // Imprimir número binario original
+    adr x0, msg_bin
+    adr x1, num_bin
+    bl printf
+    
+    // Validar entrada
+    adr x0, num_bin
+    bl validar_binario
+    cbz x0, error_entrada
+    
+    // Convertir usando método de potencias
+    adr x0, num_bin
+    bl binario_a_decimal_potencias
+    mov x19, x0              // Guardar resultado
+    
+    // Imprimir resultado
+    adr x0, msg_dec
+    mov x1, x19
+    bl printf
+    
+    // Convertir usando método de desplazamiento
+    adr x0, num_bin
+    bl binario_a_decimal_shift
+    mov x19, x0              // Guardar resultado
+    
+    // Imprimir resultado (debería ser igual al anterior)
+    adr x0, msg_dec
+    mov x1, x19
+    bl printf
+    
+    mov x0, #0              // Retorno exitoso
+    b main_exit
+    
+error_entrada:
+    adr x0, msg_error
+    bl printf
+    mov x0, #1              // Retorno con error
+    
+main_exit:
+    ldp x29, x30, [sp], #16
+    ret
+
+.global printf
