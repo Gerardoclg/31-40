@@ -1,0 +1,232 @@
+--38
+.data
+    // Definición de la cola
+    cola:        .skip 800               // Espacio para 100 elementos (8 bytes cada uno)
+    tam_cola:    .quad 100               // Tamaño máximo de la cola
+    frente:      .quad 0                 // Índice del frente de la cola
+    final:       .quad 0                 // Índice del final de la cola
+    elementos:   .quad 0                 // Número actual de elementos
+    
+    // Mensajes de formato para printf
+    msg_enq:     .string "Elemento añadido: %d\n"
+    msg_deq:     .string "Elemento extraído: %d\n"
+    msg_peek:    .string "Elemento al frente: %d\n"
+    msg_llena:   .string "Error: Cola llena\n"
+    msg_vacia:   .string "Error: Cola vacía\n"
+    msg_estado:  .string "Estado de la cola - Frente: %d, Final: %d, Elementos: %d\n"
+
+.text
+.global main
+
+// Función para verificar si la cola está vacía
+is_empty:
+    adr x0, elementos
+    ldr x0, [x0]
+    cmp x0, #0
+    cset x0, eq
+    ret
+
+// Función para verificar si la cola está llena
+is_full:
+    adr x0, elementos
+    ldr x0, [x0]
+    adr x1, tam_cola
+    ldr x1, [x1]
+    cmp x0, x1
+    cset x0, eq
+    ret
+
+// Función para mostrar el estado de la cola
+mostrar_estado:
+    stp x29, x30, [sp, #-16]!
+    
+    adr x0, msg_estado
+    adr x1, frente
+    ldr x1, [x1]
+    adr x2, final
+    ldr x2, [x2]
+    adr x3, elementos
+    ldr x3, [x3]
+    bl printf
+    
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función enqueue: añade un elemento al final de la cola
+enqueue:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0                 // Guardar valor a insertar
+    
+    bl is_full
+    cbnz x0, enqueue_error
+    
+    // Obtener posición final actual
+    adr x0, final
+    ldr x1, [x0]                // x1 = índice final
+    
+    // Calcular dirección donde insertar
+    adr x2, cola
+    lsl x3, x1, #3              // x3 = final * 8
+    add x2, x2, x3              // x2 = dirección donde insertar
+    
+    // Insertar valor
+    str x19, [x2]
+    
+    // Actualizar final
+    add x1, x1, #1
+    adr x2, tam_cola
+    ldr x2, [x2]
+    udiv x3, x1, x2            // División para obtener el cociente
+    msub x1, x3, x2, x1        // final = final % tam_cola
+    str x1, [x0]
+    
+    // Incrementar contador de elementos
+    adr x0, elementos
+    ldr x1, [x0]
+    add x1, x1, #1
+    str x1, [x0]
+    
+    // Imprimir mensaje de éxito
+    adr x0, msg_enq
+    mov x1, x19
+    bl printf
+    
+    bl mostrar_estado
+    
+    mov x0, #0                  // Éxito
+    b enqueue_fin
+    
+enqueue_error:
+    adr x0, msg_llena
+    bl printf
+    mov x0, #-1                 // Error
+    
+enqueue_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función dequeue: extrae el elemento del frente
+dequeue:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    bl is_empty
+    cbnz x0, dequeue_error
+    
+    // Obtener posición frente
+    adr x0, frente
+    ldr x1, [x0]                // x1 = índice frente
+    
+    // Calcular dirección del elemento
+    adr x2, cola
+    lsl x3, x1, #3              // x3 = frente * 8
+    add x2, x2, x3
+    
+    // Extraer valor
+    ldr x19, [x2]               // x19 = valor a retornar
+    
+    // Actualizar frente
+    add x1, x1, #1
+    adr x2, tam_cola
+    ldr x2, [x2]
+    udiv x3, x1, x2            // División para obtener el cociente
+    msub x1, x3, x2, x1        // frente = frente % tam_cola
+    str x1, [x0]
+    
+    // Decrementar contador de elementos
+    adr x0, elementos
+    ldr x1, [x0]
+    sub x1, x1, #1
+    str x1, [x0]
+    
+    // Imprimir mensaje
+    adr x0, msg_deq
+    mov x1, x19
+    bl printf
+    
+    bl mostrar_estado
+    
+    mov x0, x19                 // Retornar valor
+    b dequeue_fin
+    
+dequeue_error:
+    adr x0, msg_vacia
+    bl printf
+    mov x0, #-1
+    
+dequeue_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función peek: mira el elemento del frente sin extraerlo
+peek:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    bl is_empty
+    cbnz x0, peek_error
+    
+    // Obtener posición frente
+    adr x0, frente
+    ldr x1, [x0]                // x1 = índice frente
+    
+    // Calcular dirección del elemento
+    adr x2, cola
+    lsl x3, x1, #3              // x3 = frente * 8
+    add x2, x2, x3
+    
+    // Obtener valor
+    ldr x19, [x2]               // Guardar valor
+    
+    // Imprimir mensaje
+    adr x0, msg_peek
+    mov x1, x19
+    bl printf
+    
+    mov x0, x19                 // Retornar valor
+    b peek_fin
+    
+peek_error:
+    adr x0, msg_vacia
+    bl printf
+    mov x0, #-1
+    
+peek_fin:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+main:
+    stp x29, x30, [sp, #-16]!
+    
+    // Probar enqueue
+    mov x0, #10
+    bl enqueue
+    
+    mov x0, #20
+    bl enqueue
+    
+    mov x0, #30
+    bl enqueue
+    
+    // Probar peek
+    bl peek
+    
+    // Probar dequeue
+    bl dequeue
+    
+    // Probar dequeue de nuevo
+    bl dequeue
+    
+    // Probar enqueue después de dequeue
+    mov x0, #40
+    bl enqueue
+    
+    ldp x29, x30, [sp], #16
+    ret
+
+.global printf
