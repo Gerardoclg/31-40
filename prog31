@@ -1,0 +1,80 @@
+-31
+// Programa para calcular el MCM de dos números
+// Registros utilizados:
+// x0, x1: Números de entrada
+// x2: Resultado temporal
+// x3, x4: Variables temporales para cálculos
+
+.global _start      // Punto de entrada del programa
+
+// Función para calcular el MCD usando el algoritmo de Euclides
+calcular_mcd:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Cargar números en registros de trabajo
+    mov x19, x0     // Primer número
+    mov x20, x1     // Segundo número
+    
+mcd_loop:
+    // Verificar si el segundo número es 0
+    cmp x20, #0
+    beq mcd_fin
+    
+    // Calcular el residuo (x19 mod x20)
+    sdiv x3, x19, x20       // x3 = x19 / x20
+    mul x3, x3, x20         // x3 = x3 * x20
+    sub x3, x19, x3         // x3 = x19 - x3 (residuo)
+    
+    // Actualizar valores para la siguiente iteración
+    mov x19, x20
+    mov x20, x3
+    
+    b mcd_loop
+
+mcd_fin:
+    // El resultado está en x19
+    mov x0, x19
+    
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función principal para calcular MCM
+calcular_mcm:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar números originales
+    mov x19, x0
+    mov x20, x1
+    
+    // Llamar a la función MCD
+    bl calcular_mcd
+    
+    // Calcular MCM = (a * b) / MCD
+    mul x3, x19, x20        // x3 = a * b
+    sdiv x0, x3, x0         // x0 = (a * b) / MCD
+    
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_start:
+    // Cargar números de ejemplo (puedes modificarlos)
+    mov x0, #12
+    mov x1, #18
+    
+    // Llamar a la función MCM
+    bl calcular_mcm
+    
+    // El resultado está en x0
+    
+    // Salir del programa
+    mov x8, #93            // Código de syscall para exit
+    mov x0, #0             // Código de retorno
+    svc #0                 // Llamada al sistema
