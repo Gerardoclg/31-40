@@ -1,0 +1,210 @@
+--35
+// Programa para rotar elementos de un arreglo
+// Registros utilizados:
+// x0: Dirección base del arreglo
+// x1: Tamaño del arreglo
+// x2: Cantidad de posiciones a rotar
+// x3-x7: Registros temporales
+
+.data
+    // Arreglo de ejemplo
+    arreglo:     .quad   1, 2, 3, 4, 5, 6, 7, 8, 9, 10    // Arreglo de 10 números
+    tam_arreglo: .quad   10                                // Tamaño del arreglo
+    pos_rotar:   .quad   3                                 // Posiciones a rotar
+
+.text
+.global _start
+
+// Función para invertir una porción del arreglo
+invertir_porcion:
+    // x0: dirección inicio, x1: dirección fin
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+bucle_invertir:
+    cmp x0, x1
+    bhs fin_invertir
+    
+    // Intercambiar elementos
+    ldr x19, [x0]
+    ldr x20, [x1]
+    str x20, [x0], #8
+    str x19, [x1], #-8
+    
+    b bucle_invertir
+    
+fin_invertir:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para rotar a la izquierda usando el método de reversión
+rotar_izquierda_reversion:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0             // Dirección base
+    mov x20, x1             // Tamaño
+    
+    // Normalizar k (posiciones a rotar)
+    and x2, x2, x1         // k = k % n
+    
+    // Si k = 0, no hay que rotar
+    cbz x2, fin_rotar_izq
+    
+    // 1. Invertir primeros k elementos
+    mov x0, x19            // Inicio del primer segmento
+    sub x1, x2, #1         // Longitud del primer segmento
+    lsl x1, x1, #3
+    add x1, x19, x1        // Fin del primer segmento
+    bl invertir_porcion
+    
+    // 2. Invertir resto de elementos
+    add x0, x19, x2, lsl #3    // Inicio del segundo segmento
+    sub x1, x20, #1            // Longitud total - 1
+    lsl x1, x1, #3
+    add x1, x19, x1            // Fin del segundo segmento
+    bl invertir_porcion
+    
+    // 3. Invertir todo el arreglo
+    mov x0, x19                // Inicio del arreglo
+    sub x1, x20, #1            // Longitud total - 1
+    lsl x1, x1, #3
+    add x1, x19, x1            // Fin del arreglo
+    bl invertir_porcion
+    
+fin_rotar_izq:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para rotar a la derecha usando buffer temporal
+rotar_derecha_buffer:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Reservar espacio en la pila para buffer temporal
+    sub sp, sp, #256          // Espacio para hasta 32 elementos
+    
+    // Guardar parámetros
+    mov x19, x0               // Dirección base
+    mov x20, x1               // Tamaño
+    
+    // Normalizar k
+    and x2, x2, x1           // k = k % n
+    
+    // Si k = 0, no hay que rotar
+    cbz x2, fin_rotar_der
+    
+    // Copiar últimos k elementos al buffer
+    sub x3, x20, x2          // Índice donde empiezan últimos k elementos
+    lsl x3, x3, #3
+    add x3, x19, x3          // Dirección donde empiezan últimos k elementos
+    mov x4, sp               // Dirección del buffer
+    mov x5, x2               // Contador
+    
+copiar_a_buffer:
+    ldr x6, [x3], #8
+    str x6, [x4], #8
+    subs x5, x5, #1
+    bne copiar_a_buffer
+    
+    // Mover los primeros (n-k) elementos k posiciones a la derecha
+    sub x3, x20, #1          // Índice destino
+    sub x4, x3, x2           // Índice origen
+    
+mover_elementos:
+    lsl x5, x3, #3
+    add x5, x19, x5          // Dirección destino
+    lsl x6, x4, #3
+    add x6, x19, x6          // Dirección origen
+    ldr x7, [x6]
+    str x7, [x5]
+    subs x3, x3, #1
+    subs x4, x4, #1
+    cmp x4, #-1
+    bne mover_elementos
+    
+    // Copiar buffer al inicio del arreglo
+    mov x3, x19              // Dirección destino
+    mov x4, sp               // Dirección buffer
+    mov x5, x2               // Contador
+    
+copiar_desde_buffer:
+    ldr x6, [x4], #8
+    str x6, [x3], #8
+    subs x5, x5, #1
+    bne copiar_desde_buffer
+    
+fin_rotar_der:
+    add sp, sp, #256         // Liberar buffer
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para rotar usando desplazamiento cíclico
+rotar_ciclico:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0              // Dirección base
+    mov x20, x1              // Tamaño
+    
+    // Normalizar k
+    and x2, x2, x1          // k = k % n
+    
+    // Si k = 0, no hay que rotar
+    cbz x2, fin_rotar_ciclico
+    
+    // Guardar primer elemento
+    ldr x3, [x19]           // Primer elemento
+    mov x4, #0              // Índice actual
+    mov x5, #0              // Posiciones movidas
+    
+bucle_ciclico:
+    // Calcular próxima posición
+    add x6, x4, x2          // Nueva posición = actual + k
+    cmp x6, x20             // Si nueva posición >= tamaño
+    blt no_ajustar
+    sub x6, x6, x20         // Ajustar: nueva posición -= tamaño
+    
+no_ajustar:
+    // Cargar elemento de la nueva posición
+    lsl x7, x6, #3
+    add x7, x19, x7
+    ldr x8, [x7]            // Cargar elemento
+    str x3, [x7]            // Guardar elemento anterior
+    mov x3, x8              // Actualizar elemento a mover
+    
+    // Actualizar índice
+    mov x4, x6
+    add x5, x5, #1          // Incrementar contador
+    
+    // Verificar si hemos terminado
+    cmp x5, x20
+    blt bucle_ciclico
+    
+fin_rotar_ciclico:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_start:
+    // Cargar parámetros
+    adr x0, arreglo
+    ldr x1, tam_arreglo
+    ldr x2, pos_rotar
+    
+    // Llamar a la función de rotación deseada
+    // Descomentar el método que quieras usar
+    
+    bl rotar_izquierda_reversion    // Rotación a la izquierda por reversión
+    //bl rotar_derecha_buffer        // Rotación a la derecha usando buffer
+    //bl rotar_ciclico               // Rotación usando desplazamiento cíclico
+    
+    // Salir del programa
+    mov x8, #93                     // Syscall exit
+    mov x0, #0                      // Código de retorno
+    svc #0
