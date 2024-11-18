@@ -1,0 +1,160 @@
+--33
+// Programa para sumar elementos de un arreglo
+// Registros utilizados:
+// x0: Dirección base del arreglo
+// x1: Tamaño del arreglo
+// x2: Suma total
+// x3: Índice actual
+// x4: Valor temporal
+
+.data
+    // Definición del arreglo de ejemplo
+    arreglo:    .quad   1, 2, 3, 4, 5, 6, 7, 8, 9, 10    // Arreglo de 10 números
+    tam_arreglo: .quad  10                                // Tamaño del arreglo
+    mensaje:     .string "La suma es: "
+    nueva_linea: .string "\n"
+
+.text
+.global _start
+
+// Función para sumar elementos usando índice
+suma_con_indice:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Inicializar variables
+    mov x19, x0         // Guardar dirección base
+    mov x20, x1         // Guardar tamaño
+    mov x2, #0          // Inicializar suma en 0
+    mov x3, #0          // Inicializar índice en 0
+    
+bucle_indice:
+    // Verificar si hemos terminado
+    cmp x3, x20
+    beq fin_suma_indice
+    
+    // Calcular dirección del elemento actual
+    lsl x4, x3, #3              // Multiplicar índice por 8 (tamaño de quad)
+    add x4, x19, x4             // Añadir al dirección base
+    ldr x4, [x4]                // Cargar valor
+    
+    // Sumar al total
+    add x2, x2, x4
+    
+    // Incrementar índice
+    add x3, x3, #1
+    
+    b bucle_indice
+    
+fin_suma_indice:
+    mov x0, x2          // Retornar suma en x0
+    
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para sumar elementos usando puntero
+suma_con_puntero:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Inicializar variables
+    mov x19, x0         // Guardar dirección base
+    mov x20, x1         // Guardar tamaño
+    mov x2, #0          // Inicializar suma en 0
+    mov x3, x19         // Puntero actual = dirección base
+    
+bucle_puntero:
+    // Calcular si hemos llegado al final
+    sub x4, x3, x19     // Distancia desde el inicio
+    lsr x4, x4, #3      // Convertir bytes a elementos
+    cmp x4, x20         // Comparar con tamaño
+    beq fin_suma_puntero
+    
+    // Cargar y sumar valor actual
+    ldr x4, [x3]
+    add x2, x2, x4
+    
+    // Avanzar puntero
+    add x3, x3, #8
+    
+    b bucle_puntero
+    
+fin_suma_puntero:
+    mov x0, x2          // Retornar suma en x0
+    
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para suma usando SIMD (procesamiento paralelo)
+suma_simd:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Inicializar variables
+    mov x19, x0         // Guardar dirección base
+    mov x20, x1         // Guardar tamaño
+    
+    // Inicializar registros vectoriales
+    movi v0.2d, #0      // Vector para suma parcial
+    
+bucle_simd:
+    // Verificar si quedan al menos 2 elementos
+    cmp x20, #2
+    blt resto_simd
+    
+    // Cargar 2 elementos en vector
+    ld1 {v1.2d}, [x19], #16
+    
+    // Sumar al acumulador
+    add v0.2d, v0.2d, v1.2d
+    
+    // Actualizar contador
+    sub x20, x20, #2
+    
+    b bucle_simd
+    
+resto_simd:
+    // Sumar elementos del vector acumulador
+    addp d0, v0.2d
+    
+    // Mover resultado a registro general
+    fmov x0, d0
+    
+    // Procesar elementos restantes
+    cbz x20, fin_suma_simd
+    
+    // Cargar y sumar último elemento si es necesario
+    ldr x4, [x19]
+    add x0, x0, x4
+    
+fin_suma_simd:
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_start:
+    // Cargar parámetros
+    adr x0, arreglo         // Dirección del arreglo
+    ldr x1, tam_arreglo     // Tamaño del arreglo
+    
+    // Llamar a la función de suma deseada
+    // Descomentar el método que quieras usar
+    
+    bl suma_con_indice      // Método usando índice
+    //bl suma_con_puntero   // Método usando puntero
+    //bl suma_simd          // Método usando SIMD
+    
+    // El resultado está en x0
+    
+    // Salir del programa
+    mov x8, #93            // Syscall exit
+    mov x0, #0             // Código de retorno
+    svc #0
