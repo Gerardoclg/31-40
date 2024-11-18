@@ -1,0 +1,180 @@
+--34
+// Programa para invertir los elementos de un arreglo
+// Registros utilizados:
+// x0: Dirección base del arreglo
+// x1: Tamaño del arreglo
+// x2, x3: Índices/punteros inicio y fin
+// x4, x5: Valores temporales
+
+.data
+    // Arreglo de ejemplo
+    arreglo:     .quad   1, 2, 3, 4, 5, 6, 7, 8, 9, 10    // Arreglo de 10 números
+    tam_arreglo: .quad   10                                // Tamaño del arreglo
+    
+    // Mensajes para depuración
+    msg_original: .string "Arreglo original: "
+    msg_invertido: .string "Arreglo invertido: "
+    nueva_linea:  .string "\n"
+
+.text
+.global _start
+
+// Función para imprimir arreglo (útil para depuración)
+imprimir_arreglo:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0     // Dirección base
+    mov x20, x1     // Tamaño
+    mov x21, #0     // Índice
+    
+bucle_imprimir:
+    cmp x21, x20
+    beq fin_imprimir
+    
+    lsl x22, x21, #3        // Índice * 8
+    add x22, x19, x22
+    ldr x23, [x22]          // Cargar valor
+    
+    // Aquí irían las instrucciones para imprimir el número
+    // (omitido por simplicidad)
+    
+    add x21, x21, #1
+    b bucle_imprimir
+    
+fin_imprimir:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para invertir usando dos índices
+invertir_indices:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0             // Dirección base
+    mov x20, x1             // Tamaño
+    
+    // Inicializar índices
+    mov x2, #0             // Índice inicio
+    sub x3, x20, #1        // Índice fin
+    
+bucle_indices:
+    // Verificar si terminamos
+    cmp x2, x3
+    bge fin_indices
+    
+    // Calcular direcciones
+    lsl x4, x2, #3         // inicio * 8
+    add x4, x19, x4        // Dirección elemento inicio
+    lsl x5, x3, #3         // fin * 8
+    add x5, x19, x5        // Dirección elemento fin
+    
+    // Intercambiar elementos
+    ldr x6, [x4]           // Cargar elemento inicio
+    ldr x7, [x5]           // Cargar elemento fin
+    str x7, [x4]           // Guardar fin en inicio
+    str x6, [x5]           // Guardar inicio en fin
+    
+    // Actualizar índices
+    add x2, x2, #1         // inicio++
+    sub x3, x3, #1         // fin--
+    
+    b bucle_indices
+    
+fin_indices:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para invertir usando punteros
+invertir_punteros:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0                     // Dirección base
+    mov x20, x1                     // Tamaño
+    
+    // Calcular punteros inicio y fin
+    mov x2, x19                     // Puntero inicio
+    sub x3, x20, #1                 // Calcular índice final
+    lsl x3, x3, #3                  // Multiplicar por 8
+    add x3, x19, x3                 // Puntero fin
+    
+bucle_punteros:
+    // Verificar si terminamos
+    cmp x2, x3
+    bhs fin_punteros
+    
+    // Intercambiar elementos
+    ldr x4, [x2]                    // Cargar elemento inicio
+    ldr x5, [x3]                    // Cargar elemento fin
+    str x5, [x2], #8                // Guardar y avanzar inicio
+    str x4, [x3], #-8               // Guardar y retroceder fin
+    
+    b bucle_punteros
+    
+fin_punteros:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para invertir usando SIMD (procesamiento paralelo)
+invertir_simd:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0                     // Dirección base
+    mov x20, x1                     // Tamaño
+    
+    // Calcular puntos medio
+    lsr x2, x20, #1                // Tamaño / 2
+    
+    // Inicializar punteros
+    mov x3, x19                     // Puntero inicio
+    sub x4, x20, #2                 // Ajustar para 2 elementos
+    lsl x4, x4, #3                  // Multiplicar por 8
+    add x4, x19, x4                 // Puntero fin
+    
+bucle_simd:
+    // Verificar si quedan al menos 2 elementos para intercambiar
+    cmp x3, x4
+    bhs fin_simd
+    
+    // Cargar 2 elementos de cada extremo
+    ld1 {v0.2d}, [x3]
+    ld1 {v1.2d}, [x4]
+    
+    // Invertir y guardar
+    st1 {v1.2d}, [x3], #16
+    st1 {v0.2d}, [x4], #-16
+    
+    b bucle_simd
+    
+fin_simd:
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_start:
+    // Cargar parámetros
+    adr x0, arreglo
+    ldr x1, tam_arreglo
+    
+    // Guardar copia del arreglo original si se necesita
+    // (omitido por simplicidad)
+    
+    // Llamar a la función de inversión deseada
+    // Descomentar el método que quieras usar
+    
+    bl invertir_indices     // Método usando índices
+    //bl invertir_punteros  // Método usando punteros
+    //bl invertir_simd      // Método usando SIMD
+    
+    // Salir del programa
+    mov x8, #93            // Syscall exit
+    mov x0, #0             // Código de retorno
+    svc #0
