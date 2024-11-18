@@ -1,0 +1,133 @@
+--32
+// Programa para calcular x^n usando métodos recursivo e iterativo
+// Registros:
+// x0: Base (x)
+// x1: Exponente (n)
+// x2: Resultado temporal
+
+.global _start
+
+// Método recursivo para calcular potencia
+potencia_recursiva:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!    // Frame pointer y link register
+    stp x19, x20, [sp, #-16]!    // Registros para preservar valores
+    
+    // Guardar parámetros
+    mov x19, x0                   // Base (x)
+    mov x20, x1                   // Exponente (n)
+    
+    // Caso base: si n = 0, retornar 1
+    cmp x20, #0
+    beq caso_base
+    
+    // Caso base: si n = 1, retornar x
+    cmp x20, #1
+    beq caso_base_uno
+    
+    // Caso recursivo: x^n = x * x^(n-1)
+    sub x1, x20, #1              // n-1
+    bl potencia_recursiva        // Llamada recursiva
+    mul x0, x0, x19             // Multiplicar por x
+    b fin_recursivo
+    
+caso_base:
+    mov x0, #1
+    b fin_recursivo
+    
+caso_base_uno:
+    mov x0, x19
+    
+fin_recursivo:
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Método iterativo para calcular potencia
+potencia_iterativa:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    // Guardar parámetros
+    mov x19, x0                   // Base (x)
+    mov x20, x1                   // Exponente (n)
+    
+    // Inicializar resultado
+    mov x0, #1                    // Resultado = 1
+    
+    // Caso especial: si n = 0, ya tenemos el resultado (1)
+    cbz x20, fin_iterativo
+    
+bucle_potencia:
+    // Multiplicar resultado por x
+    mul x0, x0, x19
+    
+    // Decrementar contador y verificar si continuamos
+    subs x20, x20, #1
+    bne bucle_potencia
+    
+fin_iterativo:
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función de optimización usando el método de exponenciación rápida
+potencia_rapida:
+    // Preservar registros
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0                   // Base (x)
+    mov x20, x1                   // Exponente (n)
+    mov x0, #1                    // Resultado inicial = 1
+    
+bucle_rapido:
+    // Si n = 0, terminamos
+    cbz x20, fin_rapido
+    
+    // Si n es impar, multiplicar resultado por x
+    tbnz x20, #0, multiplicar_impar
+    b continuar_rapido
+    
+multiplicar_impar:
+    mul x0, x0, x19
+    
+continuar_rapido:
+    // x = x * x
+    mul x19, x19, x19
+    // n = n / 2
+    lsr x20, x20, #1
+    b bucle_rapido
+    
+fin_rapido:
+    // Restaurar registros
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_start:
+    // Ejemplo: calcular 2^5
+    mov x0, #2                    // Base = 2
+    mov x1, #5                    // Exponente = 5
+    
+    // Llamar a los diferentes métodos
+    // Descomentar el método que quieras usar
+    
+    // Método recursivo
+    bl potencia_recursiva
+    
+    // Método iterativo
+    //bl potencia_iterativa
+    
+    // Método rápido
+    //bl potencia_rapida
+    
+    // El resultado está en x0
+    
+    // Salir del programa
+    mov x8, #93                   // Syscall exit
+    mov x0, #0                    // Código de retorno
+    svc #0
