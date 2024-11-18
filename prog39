@@ -1,0 +1,117 @@
+--39
+.data
+    .align 4
+    numero:     .quad 42        // Número a convertir
+    buffer:     .skip 65        // 64 bits + null terminator
+    msg_input:  .string "Número decimal: %d\n"
+    msg_bin:    .string "Número binario: %s\n"
+
+.text
+.global main
+
+// Función para convertir decimal a binario
+decimal_a_binario:
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    
+    mov x19, x0                 // Guardar número original
+    adr x20, buffer            // Dirección del buffer
+    mov x2, #0                 // Índice en el buffer
+    
+    // Manejar caso especial del 0
+    cmp x19, #0
+    bne convertir
+    mov w3, #'0'
+    strb w3, [x20]
+    mov w3, #0
+    strb w3, [x20, #1]
+    b fin_conversion
+    
+convertir:
+    // Inicializar contador de posición
+    mov x3, #63                // Empezar desde el bit más significativo
+    
+bucle_conversion:
+    // Obtener bit actual
+    lsr x4, x19, x3
+    and x4, x4, #1
+    
+    // Convertir a ASCII y guardar
+    add w4, w4, #'0'
+    strb w4, [x20, x2]
+    
+    // Actualizar índices
+    add x2, x2, #1
+    subs x3, x3, #1
+    bpl bucle_conversion
+    
+    // Añadir terminador nulo
+    mov w4, #0
+    strb w4, [x20, x2]
+    
+fin_conversion:
+    // Eliminar ceros iniciales
+    adr x0, buffer
+    bl ajustar_ceros
+    
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+// Función para eliminar ceros iniciales
+ajustar_ceros:
+    mov x1, x0
+    
+buscar_uno:
+    ldrb w2, [x1]
+    cmp w2, #'0'
+    bne encontrado
+    cmp w2, #0
+    beq es_cero
+    add x1, x1, #1
+    b buscar_uno
+    
+encontrado:
+    cmp x0, x1
+    beq fin_ajuste
+    
+mover_digitos:
+    ldrb w2, [x1]
+    strb w2, [x0]
+    cbz w2, fin_ajuste
+    add x0, x0, #1
+    add x1, x1, #1
+    b mover_digitos
+    
+es_cero:
+    mov w2, #'0'
+    strb w2, [x0]
+    mov w2, #0
+    strb w2, [x0, #1]
+    
+fin_ajuste:
+    ret
+
+main:
+    stp x29, x30, [sp, #-16]!
+    
+    // Imprimir número decimal
+    adr x0, msg_input
+    ldr x1, numero
+    bl printf
+    
+    // Convertir a binario
+    ldr x0, numero
+    bl decimal_a_binario
+    
+    // Imprimir resultado
+    adr x0, msg_bin
+    adr x1, buffer
+    bl printf
+    
+    // Retornar
+    mov x0, #0
+    ldp x29, x30, [sp], #16
+    ret
+
+.global printf
